@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raos Moneng</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #111b21; color: #e9edef; margin: 0; overflow: hidden; }
+        
+        .chat-scroll::-webkit-scrollbar { width: 6px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        
+        .bg-wa-dark { background-color: #0b141a; }
+        .bg-wa-header { background-color: #202c33; }
+        .bg-wa-sent { background-color: #005c4b; }
+        .bg-wa-received { background-color: #202c33; }
+
+        .hidden { display: none !important; }
+        
+        * { 
+            -webkit-user-select: none; 
+            -webkit-touch-callout: none; 
+            -moz-user-select: none; 
+            -ms-user-select: none; 
+            user-select: none; 
+        }
+        input { -webkit-user-select: auto; user-select: auto; }
+        
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .toast-animate { animation: slideIn 0.3s ease forwards; }
+        
+        .privacy-blur { filter: blur(15px); pointer-events: none; opacity: 0.3; transition: 0.1s; }
+    </style>
+</head>
+<body class="h-screen w-full flex flex-col relative">
+
+    <div id="loading-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#111b21]">
+        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-[#00a884]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-4 text-sm text-gray-400">Menghubungkan ke server aman...</p>
+    </div>
+
+    <div id="lock-screen" class="hidden absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#111b21] backdrop-blur-md bg-opacity-95">
+        <div class="text-center p-8 bg-[#202c33] rounded-2xl shadow-2xl max-w-sm w-full mx-4">
+            <div class="mx-auto w-16 h-16 bg-[#00a884] bg-opacity-20 rounded-full flex items-center justify-center mb-6">
+                <svg class="w-8 h-8 text-[#00a884]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-semibold text-white mb-2">Aplikasi Terkunci</h2>
+            <p class="text-gray-400 text-sm mb-6">Masukkan kode sandi untuk membuka chat.</p>
+        
+            <input type="text" id="username-input" class="w-full bg-[#111b21] text-center text-white border border-gray-600 rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-[#00a884]" placeholder="Ketik Nama Anda (Misal: HP Budi)" maxlength="20">
+            <input type="password" id="pin-input" class="w-full bg-[#111b21] text-center text-white border border-gray-600 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-[#00a884] tracking-widest text-xl" placeholder="••••••" maxlength="6">
+        
+            <button id="unlock-btn" class="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold py-3 rounded-lg transition duration-200">
+                Buka Kunci
+            </button>
+            <p id="pin-error" class="text-red-400 text-sm mt-3 hidden">Kode sandi salah!</p>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden h-full flex-col w-full max-w-4xl mx-auto shadow-2xl bg-wa-dark sm:border-x sm:border-gray-800">
+        
+        <!-- Header -->
+        <header class="bg-wa-header flex items-center px-4 py-3 border-b border-gray-700/50">
+            <div class="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                <svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+            </div>
+            <div class="flex-1">
+                <h1 class="text-white font-medium">Raos Moneng</h1>
+                <p class="text-xs text-[#00a884]">Online • Auto-lock 30s aktif</p>
+            </div>
+            
+            <div class="flex items-center space-x-3 pr-1">
+                <!-- Menu Titik Tiga (HANYA MUNCUL UNTUK ADMIN Ibot165) -->
+                <div id="admin-menu-container" class="hidden relative">
+                    <button id="admin-menu-btn" class="text-[#8696a0] hover:text-white transition-colors p-1.5 rounded-full hover:bg-gray-700" title="Menu Admin">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                    </button>
+                    <div id="admin-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-[#202c33] rounded-lg shadow-2xl border border-gray-700 z-50 overflow-hidden">
+                        <button id="menu-delete-all" class="w-full text-left px-4 py-3 text-[15px] font-medium text-[#ff4a4a] hover:bg-[#2a3942] transition-colors border-b border-gray-700">1. Hapus semua</button>
+                        <button id="menu-delete-individual" class="w-full text-left px-4 py-3 text-[15px] font-medium text-[#e9edef] hover:bg-[#2a3942] transition-colors">2. Hapus satu satu</button>
+                    </div>
+                </div>
+                
+                <!-- Gembok Manual Lock -->
+                <button id="manual-lock-btn" class="text-[#8696a0] hover:text-white transition-colors p-1.5 rounded-full hover:bg-gray-700" title="Kunci Sekarang">
+                    <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <main id="chat-messages" class="flex-1 overflow-y-auto chat-scroll p-4 space-y-4 bg-[#0b141a] relative" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
+            <div class="flex justify-center mb-4">
+                <span class="bg-[#202c33] text-gray-300 text-xs px-3 py-1 rounded-lg shadow">Pesan dienkripsi dan diamankan.</span>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <footer class="bg-wa-header px-4 py-3 flex items-center space-x-2 border-t border-gray-700/50">
+            <button id="attach-btn" class="p-2 text-gray-400 hover:text-white transition rounded-full hover:bg-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+            </button>
+            <input type="file" id="file-input" class="hidden" accept="image/*, .pdf, .txt, .doc, .docx, .zip">
+            
+            <div class="flex-1 bg-[#2a3942] rounded-lg flex items-center px-3 py-2">
+                <input type="text" id="message-input" class="w-full bg-transparent text-white focus:outline-none placeholder-gray-400" placeholder="Ketik pesan..." autocomplete="off">
+            </div>
+            
+            <button id="send-btn" class="p-3 bg-[#00a884] text-white rounded-full hover:bg-[#008f6f] transition flex items-center justify-center">
+                <svg class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+            </button>
+        </footer>
+        
+        <div id="file-preview-overlay" class="hidden absolute inset-0 z-30 bg-wa-dark flex flex-col">
+            <header class="bg-wa-header flex items-center px-4 py-3">
+                <button id="cancel-file-btn" class="p-2 text-white mr-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                <h2 class="text-white font-medium">Kirim Berkas</h2>
+            </header>
+            <div class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                <img id="image-preview" class="max-h-64 max-w-full rounded-lg mb-4 hidden object-contain">
+                <div id="file-icon-preview" class="hidden mb-4 p-6 bg-gray-800 rounded-full">
+                     <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <p id="file-name-preview" class="text-white text-lg font-medium break-all"></p>
+                <p id="file-size-preview" class="text-gray-400 text-sm mt-1 mb-4"></p>
+                
+                <div id="view-once-container" class="hidden flex items-center space-x-3 mb-6 cursor-pointer group">
+                    <div id="view-once-toggle" class="w-8 h-8 rounded-full border-2 border-gray-400 text-gray-400 flex items-center justify-center transition group-hover:bg-gray-800">
+                        <span class="text-sm font-bold">1</span>
+                    </div>
+                    <p id="view-once-text" class="text-gray-400 text-sm font-medium transition group-hover:text-gray-300">Sekali lihat mati</p>
+                </div>
+                
+                <button id="confirm-send-file-btn" class="px-8 py-3 bg-[#00a884] text-white rounded-full font-medium hover:bg-[#008f6f] transition shadow-lg flex items-center space-x-2">
+                    <span>Kirim Sekarang</span>
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Once Modal -->
+    <div id="view-once-modal" class="hidden fixed inset-0 z-[70] bg-black flex-col items-center justify-center">
+        <header class="w-full flex justify-between items-center p-4 absolute top-0 left-0 bg-gradient-to-b from-black/70 to-transparent">
+            <button id="close-view-once-btn" class="p-2 text-white bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </header>
+        <img id="view-once-display" class="max-w-full max-h-full object-contain">
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[80] bg-black/80 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-[#202c33] p-6 rounded-2xl max-w-xs w-full mx-4 shadow-2xl border border-gray-700 text-center text-white">
+            <div class="mx-auto w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4 text-red-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-semibold mb-2">Konfirmasi</h3>
+            <p id="confirm-text" class="text-gray-400 text-sm mb-6 leading-relaxed">Apakah Anda yakin?</p>
+            <div class="flex justify-center space-x-3 w-full">
+                <button id="confirm-cancel" class="flex-1 px-4 py-2.5 rounded-lg text-gray-300 bg-[#2a3942] hover:bg-gray-700 transition font-medium">Batal</button>
+                <button id="confirm-ok" class="flex-1 px-4 py-2.5 bg-[#ff4a4a] hover:bg-red-600 text-white rounded-lg transition font-medium shadow-lg">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast -->
+    <div id="toast" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-[90] transition-all font-medium text-sm text-center max-w-xs w-full">
+        Pesan Error
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'secure-chat-wa';
+        
+        // ================================================================
+        // ⚙️ PENGATURAN ADMIN & GOOGLE DRIVE (GANTI DI SINI)
+        // ================================================================
+        const CORRECT_PIN = "123456"; // 👈 Ganti PIN web Anda di sini
+        const ADMIN_NAME = "Ibot165";  // 👈 Nama admin mutlak untuk akses hapus chat
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxRoTLX35Iao8KCsyvYG2brtXM7WQnv843mDRj3cvJTl5W1DEG4G6AHDUEE7bdY0uI0/exec"; // 👈 Paste URL Apps Script (berakhiran /exec) di antara tanda kutip ini!
+        // ================================================================
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            // 👈 PASTE KONFIGURASI FIREBASE ANDA DI DALAM KURUNG KURAWAL INI:
+            apiKey: "AIzaSyB1m7sqa9r_ZmGDnEsisehg_yOrjJggb98",
+            authDomain: "raosmoneng.firebaseapp.com",
+            projectId: "raosmoneng",
+            storageBucket: "raosmoneng.firebasestorage.app",
+            messagingSenderId: "3103269930",
+            appId: "G-9DDVMQ9SR5"
+        };
+        
+        const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let app, db, auth, userId;
+        let messages = [];
+        let isLocked = true;
+        let userName = localStorage.getItem('chat_aman_username') || '';
+        let isViewOnceActive = false;
+        let isDeleteModeActive = false;
+        
+        const AUTO_LOCK_MS = 30000;
+        let idleTimer = null;
+        let pendingFileData = null;
+
+        const elLoading = document.getElementById('loading-screen');
+        const elLockScreen = document.getElementById('lock-screen');
+        const elAppContainer = document.getElementById('app-container');
+        const elUsernameInput = document.getElementById('username-input');
+        const elPinInput = document.getElementById('pin-input');
+        const elUnlockBtn = document.getElementById('unlock-btn');
+        const elPinError = document.getElementById('pin-error');
+        const elChatMessages = document.getElementById('chat-messages');
+        const elMsgInput = document.getElementById('message-input');
+        const elSendBtn = document.getElementById('send-btn');
+        const elManualLockBtn = document.getElementById('manual-lock-btn');
+        
+        const elAdminMenuContainer = document.getElementById('admin-menu-container');
+        const elAdminMenuBtn = document.getElementById('admin-menu-btn');
+        const elAdminDropdown = document.getElementById('admin-dropdown');
+        const elMenuDeleteAll = document.getElementById('menu-delete-all');
+        const elMenuDeleteIndividual = document.getElementById('menu-delete-individual');
+        
+        const elToast = document.getElementById('toast');
+        const elAttachBtn = document.getElementById('attach-btn');
+        const elFileInput = document.getElementById('file-input');
+        
+        const elFilePreviewOverlay = document.getElementById('file-preview-overlay');
+        const elImgPreview = document.getElementById('image-preview');
+        const elIconPreview = document.getElementById('file-icon-preview');
+        const elFileNamePreview = document.getElementById('file-name-preview');
+        const elFileSizePreview = document.getElementById('file-size-preview');
+        const elCancelFileBtn = document.getElementById('cancel-file-btn');
+        const elConfirmSendFileBtn = document.getElementById('confirm-send-file-btn');
+        
+        const elViewOnceContainer = document.getElementById('view-once-container');
+        const elViewOnceToggle = document.getElementById('view-once-toggle');
+        const elViewOnceText = document.getElementById('view-once-text');
+        const elViewOnceModal = document.getElementById('view-once-modal');
+        const elViewOnceDisplay = document.getElementById('view-once-display');
+        const elCloseViewOnceBtn = document.getElementById('close-view-once-btn');
+
+        const elConfirmModal = document.getElementById('confirm-modal');
+        const elConfirmTitle = document.getElementById('confirm-title');
+        const elConfirmText = document.getElementById('confirm-text');
+        const elConfirmCancel = document.getElementById('confirm-cancel');
+        const elConfirmOk = document.getElementById('confirm-ok');
+        let confirmActionCallback = null;
+
+        function showCustomConfirm(title, text, callback) {
+            elConfirmTitle.textContent = title;
+            elConfirmText.textContent = text;
+            elConfirmModal.classList.remove('hidden');
+            confirmActionCallback = callback;
+        }
+
+        elConfirmCancel.addEventListener('click', () => {
+            elConfirmModal.classList.add('hidden');
+            confirmActionCallback = null;
+        });
+
+        elConfirmOk.addEventListener('click', () => {
+            elConfirmModal.classList.add('hidden');
+            if (confirmActionCallback) {
+                confirmActionCallback();
+                confirmActionCallback = null;
+            }
+        });
+
+        function showToast(message, isError = true) {
+            elToast.textContent = message;
+            elToast.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded shadow-lg z-[90] transition-all font-medium text-sm text-center max-w-xs w-full toast-animate ${isError ? 'bg-red-500' : 'bg-[#00a884]'} text-white block`;
+            setTimeout(() => { elToast.classList.add('hidden'); }, 3000);
+        }
+        window.showToast = showToast;
+
+        function formatTime(timestamp) {
+            if (!timestamp) return new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function scrollToBottom() {
+            elChatMessages.scrollTop = elChatMessages.scrollHeight;
+        }
+
+        async function initFirebase() {
+            try {
+                if (!firebaseConfig.apiKey) {
+                    showToast("Konfigurasi database kosong. Mode lokal aktif.");
+                    setupApp(false);
+                    return;
+                }
+
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (authToken) {
+                    await signInWithCustomToken(auth, authToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                userId = auth.currentUser.uid;
+                setupApp(true);
+            } catch (error) {
+                console.error("Firebase Error:", error);
+                showToast("Gagal terhubung ke database.");
+                setupApp(false);
+            }
+        }
+
+        function setupApp(useFirestore) {
+            elLoading.classList.add('hidden');
+            showLockScreen();
+            
+            if (useFirestore) {
+                const chatPath = `artifacts/${appId}/public/data/secure_messages`;
+                onSnapshot(collection(db, chatPath), (snapshot) => {
+                    messages = [];
+                    snapshot.forEach((doc) => {
+                        messages.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    messages.sort((a, b) => {
+                        const timeA = a.timestamp ? (a.timestamp.toMillis ? a.timestamp.toMillis() : a.timestamp) : Date.now();
+                        const timeB = b.timestamp ? (b.timestamp.toMillis ? b.timestamp.toMillis() : b.timestamp) : Date.now();
+                        return timeA - timeB;
+                    });
+                    
+                    renderMessages();
+                }, (error) => {
+                    console.error("Snapshot Error:", error);
+                });
+            } else {
+                messages = [{ id: '1', text: 'Mode lokal aktif.', senderId: 'system', timestamp: Date.now() }];
+                renderMessages();
+            }
+        }
+
+        function showLockScreen() {
+            isLocked = true;
+            elAppContainer.classList.add('hidden');
+            elLockScreen.classList.remove('hidden');
+            elPinInput.value = '';
+            elUsernameInput.value = userName || '';
+            elPinError.classList.add('hidden');
+            
+            if (!elUsernameInput.value) elUsernameInput.focus();
+            else elPinInput.focus();
+            stopIdleTimer();
+        }
+
+        function unlockApp() {
+            const pin = elPinInput.value;
+            const name = elUsernameInput.value.trim();
+            
+            if (!name) {
+                showToast("Nama tidak boleh kosong!", true);
+                elUsernameInput.focus();
+                return;
+            }
+
+            if (pin === CORRECT_PIN) {
+                userName = name;
+                localStorage.setItem('chat_aman_username', userName);
+                isLocked = false;
+                elLockScreen.classList.add('hidden');
+                
+                if (userName === ADMIN_NAME) {
+                    elAdminMenuContainer.classList.remove('hidden');
+                } else {
+                    elAdminMenuContainer.classList.add('hidden');
+                    isDeleteModeActive = false;
+                }
+                
+                elAppContainer.classList.remove('hidden');
+                elAppContainer.classList.add('flex');
+                scrollToBottom();
+                startIdleTimer();
+                elMsgInput.focus();
+                renderMessages();
+            } else {
+                elPinError.classList.remove('hidden');
+                elPinInput.value = '';
+                elPinInput.focus();
+            }
+        }
+
+        function startIdleTimer() {
+            stopIdleTimer();
+            idleTimer = setTimeout(() => {
+                if (!isLocked) {
+                    showLockScreen();
+                    showToast("Aplikasi terkunci otomatis.", false);
+                }
+            }, AUTO_LOCK_MS);
+        }
+
+        function stopIdleTimer() {
+            if (idleTimer) clearTimeout(idleTimer);
+        }
+
+        ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll'].forEach(event => {
+            window.addEventListener(event, () => {
+                if (!isLocked) startIdleTimer();
+            });
+        });
+
+        function renderMessages() {
+            let html = `
+                <div class="flex justify-center mb-4 mt-2">
+                    <span class="bg-[#202c33] text-[#8696a0] text-xs px-3 py-1.5 rounded-lg shadow-sm font-medium">🛡️ Pesan dienkripsi secara end-to-end.</span>
+                </div>
+            `;
+            
+            messages.forEach(msg => {
+                const isMe = msg.senderId === userId || msg.senderId === 'me';
+                const alignmentClass = isMe ? 'justify-end' : 'justify-start';
+                const bgClass = isMe ? 'bg-wa-sent' : 'bg-wa-received';
+                const radiusClass = isMe ? 'rounded-tl-lg rounded-bl-lg rounded-br-lg rounded-tr-sm' : 'rounded-tr-lg rounded-br-lg rounded-bl-lg rounded-tl-sm';
+                const timeStr = formatTime(msg.timestamp);
+                
+                let contentHtml = '';
+                if (msg.senderName) {
+                    const colors = ['text-[#53bdeb]', 'text-[#ff7a7a]', 'text-[#f5a623]', 'text-[#b785f5]', 'text-[#37e289]'];
+                    let hash = 0;
+                    for (let i = 0; i < msg.senderName.length; i++) hash = msg.senderName.charCodeAt(i) + ((hash << 5) - hash);
+                    const nameColor = colors[Math.abs(hash) % colors.length];
+                    const nameAlign = isMe ? 'text-right' : 'text-left';
+                    contentHtml += `<p class="text-[13px] font-semibold ${nameColor} mb-0.5 ${nameAlign}">${escapeHTML(msg.senderName)}</p>`;
+                }
+                
+                if (msg.type === 'image' && msg.fileData) {
+                    if (msg.viewOnce) {
+                        if (msg.viewed) {
+                            contentHtml += `<div class="flex items-center space-x-2 text-gray-400 italic text-sm py-2 px-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg><span>Terbuka</span></div>`;
+                        } else {
+                            const clickAction = isMe ? `window.showToast('Foto sekali lihat terkirim', false)` : `window.openViewOnce('${msg.id}')`;
+                            contentHtml += `<div onclick="${clickAction}" class="flex items-center space-x-2 text-[#00a884] font-medium text-sm py-2 px-1 cursor-pointer hover:opacity-85 transition"><div class="w-5 h-5 rounded-full border-2 border-[#00a884] flex items-center justify-center"><span class="text-[10px]">1</span></div><span>Foto</span></div>`;
+                        }
+                    } else {
+                        contentHtml += `<img src="${msg.fileData}" class="max-w-xs max-h-60 rounded-md mb-1 cursor-pointer hover:opacity-90 transition" alt="Gambar" onclick="window.open('${msg.fileData}', '_blank')">`;
+                    }
+                    if (msg.text && !msg.viewOnce) contentHtml += `<p class="text-sm text-[#e9edef] mt-1 whitespace-pre-wrap">${escapeHTML(msg.text)}</p>`;
+                } else if (msg.type === 'file' && msg.fileData) {
+                    contentHtml += `
+                        <div class="flex items-center bg-black bg-opacity-20 p-2 rounded-md mb-1">
+                            <div class="p-3 bg-[#00a884] rounded-full mr-3"><svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
+                            <div class="flex-1 overflow-hidden"><p class="text-sm font-medium text-white truncate">${escapeHTML(msg.fileName || 'Berkas')}</p></div>
+                            <a href="${msg.fileData}" download="${escapeHTML(msg.fileName || 'file')}" class="ml-2 p-2 hover:bg-white hover:bg-opacity-10 rounded-full transition cursor-pointer"><svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></a>
+                        </div>
+                    `;
+                    if (msg.text) contentHtml += `<p class="text-sm text-[#e9edef] mt-1 whitespace-pre-wrap">${escapeHTML(msg.text)}</p>`;
+                } else {
+                    contentHtml += `<p class="text-[15px] text-[#e9edef] whitespace-pre-wrap leading-relaxed">${escapeHTML(msg.text)}</p>`;
+                }
+                
+                let adminDeleteBtnLeft = '';
+                let adminDeleteBtnRight = '';
+                
+                if (userName === ADMIN_NAME && isDeleteModeActive) {
+                    const deleteHtml = `<button onclick="window.deleteMessage('${msg.id}')" class="flex-shrink-0 mt-2 p-2 text-[#ff4a4a] bg-[#202c33] hover:bg-[#ff4a4a] hover:text-white rounded-full shadow-lg border border-gray-700 transition-all cursor-pointer z-10" title="Hapus"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+                    if (isMe) { adminDeleteBtnLeft = deleteHtml + `<div class="w-2"></div>`; }
+                    else { adminDeleteBtnRight = `<div class="w-2"></div>` + deleteHtml; }
+                }
+
+                html += `
+                    <div class="flex ${alignmentClass} mb-2 w-full items-start px-1">
+                        ${adminDeleteBtnLeft}
+                        <div class="max-w-[75%] sm:max-w-[70%] relative ${bgClass} px-3 pb-2 pt-2 shadow-sm ${radiusClass}">
+                            ${contentHtml}
+                            <div class="flex justify-end items-center mt-1 space-x-1 float-right clear-both">
+                                <span class="text-[11px] text-[#8696a0] ml-3">${timeStr}</span>
+                                ${isMe ? `<svg class="w-4 h-4 text-[#53bdeb]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.45 18.35L6.6 12.5l1.4-1.4 4.45 4.45 9.15-9.15 1.4 1.4-10.55 10.55zM17.4 6.2l-5.65 5.65-2.1-2.1-1.4 1.4 3.5 3.5 7.05-7.05-1.4-1.4z"/></svg>` : ''}
+                            </div>
+                        </div>
+                        ${adminDeleteBtnRight}
+                    </div>
+                `;
+            });
+            
+            elChatMessages.innerHTML = html;
+            scrollToBottom();
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
+        }
+
+        async function sendMessage(text, type = 'text', fileData = null, fileName = null, viewOnce = false) {
+            if (!text.trim() && !fileData) return;
+            if (!db || !auth.currentUser) {
+                messages.push({ id: Date.now().toString(), text, senderId: 'me', timestamp: Date.now(), type, fileData, fileName, viewOnce, viewed: false });
+                renderMessages();
+                elMsgInput.value = '';
+                return;
+            }
+
+            try {
+                elMsgInput.value = '';
+                const chatPath = `artifacts/${appId}/public/data/secure_messages`;
+                const payload = { text: text.trim(), senderId: userId, senderName: userName, timestamp: serverTimestamp(), type };
+                
+                if (fileData) {
+                    if (GAS_URL && GAS_URL !== "PASTE_URL_APPS_SCRIPT_DISINI") {
+                        showToast("Mengunggah ke Drive 'raos moneng'...", false);
+                        let mimeType = 'application/octet-stream';
+                        if (type === 'image') {
+                            const match = fileData.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*,.*/);
+                            if (match) mimeType = match[1];
+                        }
+
+                        const response = await fetch(GAS_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({ filename: fileName || ('file_' + Date.now()), mimeType, base64: fileData })
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            payload.fileData = result.url;
+                            if (fileName) payload.fileName = fileName;
+                            if (viewOnce) { payload.viewOnce = true; payload.viewed = false; delete payload.text; }
+                            showToast("Berhasil diunggah ke Drive!", false);
+                        } else {
+                            throw new Error("Gagal Google Drive");
+                        }
+                    } else {
+                        payload.fileData = fileData;
+                        if (fileName) payload.fileName = fileName;
+                        if (viewOnce) { payload.viewOnce = true; payload.viewed = false; delete payload.text; }
+                    }
+                }
+                
+                await addDoc(collection(db, chatPath), payload);
+            } catch (error) {
+                console.error("Kirim Error:", error);
+                showToast("Gagal mengirim pesan.");
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+            if (file.size > MAX_SIZE) {
+                showToast("File terlalu besar. Maksimal 2MB.");
+                elFileInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                pendingFileData = { data: e.target.result, name: file.name, type: file.type.startsWith('image/') ? 'image' : 'file', size: file.size };
+                showFilePreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showFilePreview() {
+            if (!pendingFileData) return;
+            elFilePreviewOverlay.classList.remove('hidden');
+            elFileNamePreview.textContent = pendingFileData.name;
+            elFileSizePreview.textContent = `${(pendingFileData.size / 1024).toFixed(1)} KB`;
+            
+            if (pendingFileData.type === 'image') {
+                elImgPreview.src = pendingFileData.data;
+                elImgPreview.classList.remove('hidden');
+                elIconPreview.classList.add('hidden');
+                elViewOnceContainer.classList.remove('hidden');
+                elViewOnceContainer.classList.add('flex');
+            } else {
+                elImgPreview.classList.add('hidden');
+                elIconPreview.classList.remove('hidden');
+                elViewOnceContainer.classList.add('hidden');
+                elViewOnceContainer.classList.remove('flex');
+            }
+        }
+
+        function closeFilePreview() {
+            elFilePreviewOverlay.classList.add('hidden');
+            pendingFileData = null;
+            elFileInput.value = '';
+            isViewOnceActive = false;
+            updateViewOnceUI();
+        }
+
+        function updateViewOnceUI() {
+            if (isViewOnceActive) {
+                elViewOnceToggle.classList.replace('border-gray-400', 'border-[#00a884]');
+                elViewOnceToggle.classList.replace('text-gray-400', 'text-white');
+                elViewOnceToggle.classList.add('bg-[#00a884]');
+                elViewOnceText.textContent = "Sekali lihat aktif";
+                elViewOnceText.classList.replace('text-gray-400', 'text-[#00a884]');
+            } else {
+                elViewOnceToggle.classList.replace('border-[#00a884]', 'border-gray-400');
+                elViewOnceToggle.classList.replace('text-white', 'text-gray-400');
+                elViewOnceToggle.classList.remove('bg-[#00a884]');
+                elViewOnceText.textContent = "Sekali lihat mati";
+                elViewOnceText.classList.replace('text-[#00a884]', 'text-gray-400');
+            }
+        }
+
+        window.openViewOnce = async function(msgId) {
+            const msg = messages.find(m => m.id === msgId);
+            if (!msg || !msg.fileData) {
+                window.showToast("Foto sudah kedaluwarsa.", true);
+                return;
+            }
+            
+            elViewOnceDisplay.src = msg.fileData;
+            elViewOnceModal.classList.remove('hidden');
+            elViewOnceModal.classList.add('flex');
+
+            if (db && msgId) {
+                try {
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/secure_messages`, msgId), { viewed: true, fileData: "" }); 
+                } catch (e) { console.error(e); }
+            } else {
+                msg.viewed = true;
+                msg.fileData = "";
+                renderMessages();
+            }
+        };
+
+        elCloseViewOnceBtn.addEventListener('click', () => {
+            elViewOnceModal.classList.add('hidden');
+            elViewOnceModal.classList.remove('flex');
+            elViewOnceDisplay.src = '';
+        });
+
+        elViewOnceContainer.addEventListener('click', () => {
+            isViewOnceActive = !isViewOnceActive;
+            updateViewOnceUI();
+        });
+
+        elUnlockBtn.addEventListener('click', unlockApp);
+        elPinInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') unlockApp(); });
+
+        elSendBtn.addEventListener('click', () => { sendMessage(elMsgInput.value); });
+        elMsgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(elMsgInput.value); });
+
+        elManualLockBtn.addEventListener('click', () => {
+            showLockScreen();
+            showToast("Aplikasi dikunci.", false);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (elAdminMenuContainer && !elAdminMenuContainer.contains(e.target)) {
+                elAdminDropdown.classList.add('hidden');
+            }
+        });
+
+        elAdminMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            elAdminDropdown.classList.toggle('hidden');
+        });
+
+        elMenuDeleteAll.addEventListener('click', () => {
+            elAdminDropdown.classList.add('hidden');
+            if (userName !== ADMIN_NAME) return;
+            
+            showCustomConfirm("Hapus Semua Obrolan", "Semua riwayat chat akan dihapus secara permanen untuk semua orang. Lanjutkan?", async () => {
+                if (db) {
+                    try {
+                        showToast("Membersihkan obrolan...", false);
+                        const snapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/secure_messages`));
+                        const promises = [];
+                        snapshot.forEach((d) => { promises.push(deleteDoc(d.ref)); });
+                        await Promise.all(promises);
+                        showToast("Obrolan berhasil dibersihkan!", false);
+                    } catch (err) {
+                        showToast("Gagal menghapus.");
+                    }
+                } else {
+                    messages = [];
+                    renderMessages();
+                }
+            });
+        });
+
+        elMenuDeleteIndividual.addEventListener('click', () => {
+            elAdminDropdown.classList.add('hidden');
+            isDeleteModeActive = !isDeleteModeActive;
+            showToast(isDeleteModeActive ? "Mode hapus satu-satu aktif." : "Mode hapus dinonaktifkan.", false);
+            renderMessages();
+        });
+
+        window.deleteMessage = function(msgId) {
+            if (userName !== ADMIN_NAME) return;
+            showCustomConfirm("Hapus Pesan", "Hapus pesan ini?", async () => {
+                if (db) {
+                    try {
+                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/secure_messages`, msgId));
+                    } catch (err) {
+                        showToast("Gagal menghapus pesan.");
+                    }
+                } else {
+                    messages = messages.filter(m => m.id !== msgId);
+                    renderMessages();
+                }
+            });
+        };
+
+        elAttachBtn.addEventListener('click', () => { elFileInput.click(); });
+        elFileInput.addEventListener('change', handleFileSelect);
+        elCancelFileBtn.addEventListener('click', closeFilePreview);
+        
+        elConfirmSendFileBtn.addEventListener('click', () => {
+            if (pendingFileData) {
+                sendMessage(elMsgInput.value, pendingFileData.type, pendingFileData.data, pendingFileData.name, isViewOnceActive);
+                closeFilePreview();
+            }
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) document.body.classList.add('privacy-blur');
+            else document.body.classList.remove('privacy-blur');
+        });
+        window.addEventListener("blur", () => { document.body.classList.add('privacy-blur'); });
+        window.addEventListener("focus", () => { document.body.classList.remove('privacy-blur'); });
+
+        window.addEventListener('DOMContentLoaded', () => { initFirebase(); });
+    </script>
+</body>
+</html>
